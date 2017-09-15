@@ -1,0 +1,64 @@
+---
+  - name: Create directory for Aerospike
+    file: dest={{aerospike_source_directory}} state=directory
+    become: yes
+  - name: Download
+    unarchive: src={{aerospike_download_url}} dest={{aerospike_source_directory}} copy=no
+    become: yes
+    ignore_errors: yes
+  - name: Install aerospike from rpms
+    command: rpm -Uvh {{ aerospike_source_directory }}/{{ aerospike_package_name }}/{{ item }}
+    with_items:
+      - "{{aerospike_rpm_name}}"
+      - "{{aerospike_tools_rpm_name}}"
+    become: yes
+  - name: Copy config file
+    template:
+        src: aerospike.conf.j2
+        dest: /etc/aerospike/aerospike.conf
+    become: yes
+    when: ansible_all_ipv4_addresses[0] != hostvars['ec2-instance2']['ansible_eth0']['ipv4']['address']
+  - name: Copy config file
+    template:
+        src: aerospike.conf.j2
+        dest: /etc/aerospike/aerospike.conf
+    become: yes
+    when: ansible_all_ipv4_addresses[0] == hostvars['ec2-instance2']['ansible_eth0']['ipv4']['address']
+  - name: Set permissions for files
+    command: chown -R aerospike:aerospike /var/run/aerospike
+    become: yes
+  - name: Set permissions for files
+    command: chown -R aerospike:aerospike /var/log/aerospike/
+    become: yes
+  - name: Set permission for files
+    command: chown -R aerospike:aerospike /opt/aerospike/smd
+    become: yes
+  - name: Set permission for files
+    command: chown -R aerospike:aerospike /opt/aerospike/usr
+    become: yes 
+  - name: reboot host
+    sudo: yes
+    shell: nohup bash -c "sleep 2s && reboot" &
+    register: reboot
+  - name: wait for host boot
+    local_action:
+      module: wait_for
+      host: "{{ ansible_ssh_host }}"
+      port: 22
+      delay: "{{ boot_wait | default(60) }}"
+      timeout: 120
+      state: started
+    when: reboot.changed
+  - name: Start Service
+    command: service aerospike start
+    become: yes
+  - name: Check Status
+    command: service aerospike status
+    become: yes
+    register: status
+  - debug: "msg={{status.stdout}}"
+  - name: Check Cluster size
+    command: bash -c 'sleep 10 && grep CLUSTER-SIZE /var/log/aerospike/aerospike.log | tail -1' 
+    register: size
+    become: yes
+  - debug: "msg={{size.stdout}}"
