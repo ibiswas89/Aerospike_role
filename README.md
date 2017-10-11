@@ -6,6 +6,6 @@
 
 
 ## Variables
-* edit the variables int defaults/main.yml to change the variables based on the currents aerospike version
+* edit the variables int defaults/main.yml to change the variables based on the current aerospike version
 
 
